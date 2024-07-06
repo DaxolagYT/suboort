@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Charger des vidéos par glisser-déposer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            margin-top: 50px;
+        }
+        input {
+            margin: 10px;
+            padding: 10px;
+            width: 80%;
+            max-width: 300px;
+        }
+        button {
+            padding: 10px 20px;
+            margin-top: 20px;
+        }
+        #drop-zone {
+            width: 100%;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            border: 2px dashed #ccc;
+            text-align: center;
+            color: #ccc;
+            display: none; /* Hide initially */
+        }
+        .video-item {
+            position: relative;
+            display: inline-block;
+            margin: 10px;
+        }
+        .video-item video {
+            width: 150px; /* Adjust the width as needed */
+            height: auto; /* Maintain aspect ratio */
+            display: block;
+        }
+        .remove-btn {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: red;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            cursor: pointer;
+            text-align: center;
+            line-height: 25px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Charger des vidéos par glisser-déposer</h1>
+
+    <!-- Registration Form -->
+    <div class="container" id="register-container">
+        <h2>Enregistrement</h2>
+        <input type="text" id="register-username" placeholder="Nom d'utilisateur" required>
+        <br>
+        <input type="password" id="register-password" placeholder="Mot de passe" required>
+        <br>
+        <button onclick="register()">S'enregistrer</button>
+    </div>
+
+    <!-- Login Form -->
+    <div class="container" id="login-container" style="display:none;">
+        <h2>Connexion</h2>
+        <input type="text" id="login-username" placeholder="Nom d'utilisateur" required>
+        <br>
+        <input type="password" id="login-password" placeholder="Mot de passe" required>
+        <br>
+        <button onclick="login()">Se connecter</button>
+    </div>
+
+    <div id="drop-zone">Glissez et déposez des vidéos ici</div>
+    <div id="video-container"></div>
+
+    <!-- Votre logo -->
+    <img src="logoSite.png">
+
+    <script>
+        document.addEventListener('DOMContentLoaded', (event) => {
+            // Check if user is already registered
+            if (localStorage.getItem('username')) {
+                document.getElementById('register-container').style.display = 'none';
+                document.getElementById('login-container').style.display = 'block';
+            } else {
+                document.getElementById('register-container').style.display = 'block';
+                document.getElementById('login-container').style.display = 'none';
+            }
+
+            // Load saved videos if any
+            if (localStorage.getItem('videos')) {
+                const videos = JSON.parse(localStorage.getItem('videos'));
+                videos.forEach(video => {
+                    const videoItem = createVideoElement(video.url, video.username);
+                    document.getElementById('video-container').appendChild(videoItem);
+                });
+            }
+        });
+
+        function register() {
+            const username = document.getElementById('register-username').value;
+            const password = document.getElementById('register-password').value;
+
+            if (username && password) {
+                localStorage.setItem('username', username);
+                localStorage.setItem('password', password);
+                localStorage.setItem('videos', JSON.stringify([])); // Initialize empty array for videos
+                alert('Enregistrement réussi! Veuillez vous connecter.');
+                document.getElementById('register-container').style.display = 'none';
+                document.getElementById('login-container').style.display = 'block';
+            } else {
+                alert('Veuillez remplir tous les champs.');
+            }
+        }
+
+        function login() {
+            const username = document.getElementById('login-username').value;
+            const password = document.getElementById('login-password').value;
+            const storedUsername = localStorage.getItem('username');
+            const storedPassword = localStorage.getItem('password');
+
+            if (username === storedUsername && password === storedPassword) {
+                alert('Connexion réussie!');
+                document.getElementById('login-container').style.display = 'none';
+                document.getElementById('drop-zone').style.display = 'block';
+                showUserVideos(username);
+            } else {
+                alert('Nom d\'utilisateur ou mot de passe incorrect.');
+            }
+        }
+
+        const dropZone = document.getElementById('drop-zone');
+        const videoContainer = document.getElementById('video-container');
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#000';
+            dropZone.style.color = '#000';
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            dropZone.style.borderColor = '#ccc';
+            dropZone.style.color = '#ccc';
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#ccc';
+            dropZone.style.color = '#ccc';
+
+            const files = e.dataTransfer.files;
+            const videos = JSON.parse(localStorage.getItem('videos')) || [];
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const videoType = /^video\//;
+
+                if (!videoType.test(file.type)) {
+                    alert('Veuillez déposer uniquement des fichiers vidéo.');
+                    continue;
+                }
+
+                const videoItem = {
+                    username: localStorage.getItem('username'),
+                    url: URL.createObjectURL(file)
+                };
+
+                videos.push(videoItem);
+                saveVideos(videos);
+
+                const videoElement = createVideoElement(videoItem.url, videoItem.username);
+                videoContainer.appendChild(videoElement);
+            }
+        });
+
+        function createVideoElement(src, owner) {
+            const videoItem = document.createElement('div');
+            videoItem.className = 'video-item';
+
+            const video = document.createElement('video');
+            video.controls = true;
+            video.src = src;
+
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'remove-btn';
+            removeBtn.innerHTML = '&times;';
+            removeBtn.addEventListener('click', () => {
+                if (confirm('Êtes-vous sûr de vouloir supprimer cette vidéo ?')) {
+                    const videos = JSON.parse(localStorage.getItem('videos'));
+                    const updatedVideos = videos.filter(video => video.url !== src || video.username !== localStorage.getItem('username'));
+                    saveVideos(updatedVideos);
+                    videoContainer.removeChild(videoItem);
+                }
+            });
+
+            // Allow only the video owner to remove it
+            if (owner === localStorage.getItem('username')) {
+                videoItem.appendChild(removeBtn);
+            }
+
+            videoItem.appendChild(video);
+
+            return videoItem;
+        }
+
+        function saveVideos(videos) {
+            localStorage.setItem('videos', JSON.stringify(videos));
+        }
+    </script>
+</body>
+</html>
