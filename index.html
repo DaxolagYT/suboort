@@ -84,7 +84,7 @@
         <br>
         <button onclick="login()">Se connecter</button>
     </div>
-
+    <button id="logout-button" onclick="logout()" style="display:none;">Se déconnecter</button>
     <div id="drop-zone">Glissez et déposez des vidéos ici</div>
     <div id="video-container"></div>
 
@@ -140,6 +140,14 @@ function login() {
     } else {
         alert('Nom d\'utilisateur ou mot de passe incorrect.');
     }
+}
+
+function logout() {
+    localStorage.removeItem('currentUser');
+    document.getElementById('drop-zone').style.display = 'none';
+    document.getElementById('logout-button').style.display = 'none';
+    document.getElementById('login-container').style.display = 'block';
+    document.getElementById('video-container').innerHTML = '';
 }
 
 const dropZone = document.getElementById('drop-zone');
