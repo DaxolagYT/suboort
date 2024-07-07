@@ -93,151 +93,189 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', (event) => {
-            const currentUser = localStorage.getItem('currentUser');
-            if (currentUser) {
-                document.getElementById('register-container').style.display = 'none';
-                document.getElementById('login-container').style.display = 'none';
-                document.getElementById('drop-zone').style.display = 'block';
-                showUserVideos();
-            } else if (localStorage.getItem('username') && localStorage.getItem('password')) {
-                document.getElementById('register-container').style.display = 'none';
-                document.getElementById('login-container').style.display = 'block';
-            } else {
-                document.getElementById('register-container').style.display = 'block';
-                document.getElementById('login-container').style.display = 'none';
+    const currentUser = localStorage.getItem('currentUser');
+    if (currentUser) {
+        document.getElementById('register-container').style.display = 'none';
+        document.getElementById('login-container').style.display = 'none';
+        document.getElementById('drop-zone').style.display = 'block';
+        showUserVideos();
+    } else if (localStorage.getItem('username') && localStorage.getItem('password')) {
+        document.getElementById('register-container').style.display = 'none';
+        document.getElementById('login-container').style.display = 'block';
+    } else {
+        document.getElementById('register-container').style.display = 'block';
+        document.getElementById('login-container').style.display = 'none';
+    }
+});
+
+function register() {
+    const username = document.getElementById('register-username').value;
+    const password = document.getElementById('register-password').value;
+
+    if (username && password) {
+        const userId = generateUserId();
+        localStorage.setItem('userId', userId);
+        localStorage.setItem('username', username);
+        localStorage.setItem('password', password);
+        alert('Enregistrement réussi! Veuillez vous connecter.');
+        document.getElementById('register-container').style.display = 'none';
+        document.getElementById('login-container').style.display = 'block';
+    } else {
+        alert('Veuillez remplir tous les champs.');
+    }
+}
+
+function login() {
+    const username = document.getElementById('login-username').value;
+    const password = document.getElementById('login-password').value;
+    const storedUsername = localStorage.getItem('username');
+    const storedPassword = localStorage.getItem('password');
+
+    if (username === storedUsername && password === storedPassword) {
+        alert('Connexion réussie!');
+        localStorage.setItem('currentUser', storedUsername); // Set current user
+        document.getElementById('login-container').style.display = 'none';
+        document.getElementById('drop-zone').style.display = 'block';
+        showUserVideos();
+    } else {
+        alert('Nom d\'utilisateur ou mot de passe incorrect.');
+    }
+}
+
+const dropZone = document.getElementById('drop-zone');
+const videoContainer = document.getElementById('video-container');
+
+dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.style.borderColor = '#000';
+    dropZone.style.color = '#000';
+});
+
+dropZone.addEventListener('dragleave', (e) => {
+    dropZone.style.borderColor = '#ccc';
+    dropZone.style.color = '#ccc';
+});
+
+dropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.style.borderColor = '#ccc';
+    dropZone.style.color = '#ccc';
+
+    const files = e.dataTransfer.files;
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const videoType = /^video\//;
+
+        if (!videoType.test(file.type)) {
+            alert('Veuillez déposer uniquement des fichiers vidéo.');
+            continue;
+        }
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const videoItem = {
+                userId: localStorage.getItem('userId'),
+                url: event.target.result // Save base64 encoded string
+            };
+
+            saveVideo(videoItem);
+
+            const videoElement = createVideoElement(videoItem.url, videoItem.userId);
+            videoContainer.appendChild(videoElement);
+        };
+        reader.readAsDataURL(file); // Read file as base64 string
+    }
+});
+
+function createVideoElement(src, userId) {
+    const videoItem = document.createElement('div');
+    videoItem.className = 'video-item';
+
+    const video = document.createElement('video');
+    video.controls = true;
+    video.src = src;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-btn';
+    removeBtn.innerHTML = '&times;';
+    if (userId === localStorage.getItem('userId')) {
+        removeBtn.addEventListener('click', () => {
+            if (confirm('Êtes-vous sûr de vouloir supprimer cette vidéo ?')) {
+                deleteVideo(src);
+                videoContainer.removeChild(videoItem);
             }
         });
+    } else {
+        removeBtn.style.display = 'none'; // Hide the button for non-owners
+    }
 
-        function register() {
-            const username = document.getElementById('register-username').value;
-            const password = document.getElementById('register-password').value;
+    videoItem.appendChild(video);
+    videoItem.appendChild(removeBtn);
 
-            if (username && password) {
-                const userId = generateUserId();
-                localStorage.setItem('userId', userId);
-                localStorage.setItem('username', username);
-                localStorage.setItem('password', password);
-                localStorage.setItem('videos', JSON.stringify([])); // Initialize empty array for videos
-                alert('Enregistrement réussi! Veuillez vous connecter.');
-                document.getElementById('register-container').style.display = 'none';
-                document.getElementById('login-container').style.display = 'block';
-            } else {
-                alert('Veuillez remplir tous les champs.');
+    return videoItem;
+}
+
+function generateUserId() {
+    return '_' + Math.random().toString(36).substr(2, 9); // Simple random generation for demo purposes
+}
+
+function initDB() {
+    const request = indexedDB.open("videoDB", 1);
+
+    request.onupgradeneeded = (event) => {
+        const db = event.target.result;
+        const objectStore = db.createObjectStore("videos", { keyPath: "url" });
+        objectStore.createIndex("userId", "userId", { unique: false });
+    };
+
+    return request;
+}
+
+function saveVideo(video) {
+    const request = initDB();
+
+    request.onsuccess = (event) => {
+        const db = event.target.result;
+        const transaction = db.transaction(["videos"], "readwrite");
+        const objectStore = transaction.objectStore("videos");
+        objectStore.add(video);
+    };
+}
+
+function deleteVideo(url) {
+    const request = initDB();
+
+    request.onsuccess = (event) => {
+        const db = event.target.result;
+        const transaction = db.transaction(["videos"], "readwrite");
+        const objectStore = transaction.objectStore("videos");
+        objectStore.delete(url);
+    };
+}
+
+function showUserVideos() {
+    const request = initDB();
+
+    request.onsuccess = (event) => {
+        const db = event.target.result;
+        const transaction = db.transaction(["videos"], "readonly");
+        const objectStore = transaction.objectStore("videos");
+        const index = objectStore.index("userId");
+        const userId = localStorage.getItem('userId');
+        const query = index.openCursor(IDBKeyRange.only(userId));
+
+        query.onsuccess = (event) => {
+            const cursor = event.target.result;
+            if (cursor) {
+                const video = cursor.value;
+                const videoElement = createVideoElement(video.url, video.userId);
+                videoContainer.appendChild(videoElement);
+                cursor.continue();
             }
-        }
+        };
+    };
+}
 
-        function login() {
-            const username = document.getElementById('login-username').value;
-            const password = document.getElementById('login-password').value;
-            const storedUsername = localStorage.getItem('username');
-            const storedPassword = localStorage.getItem('password');
-
-            if (username === storedUsername && password === storedPassword) {
-                alert('Connexion réussie!');
-                localStorage.setItem('currentUser', storedUsername); // Set current user
-                document.getElementById('login-container').style.display = 'none';
-                document.getElementById('drop-zone').style.display = 'block';
-                showUserVideos();
-            } else {
-                alert('Nom d\'utilisateur ou mot de passe incorrect.');
-            }
-        }
-
-        function showUserVideos() {
-            const videos = JSON.parse(localStorage.getItem('videos'));
-            document.getElementById('video-container').innerHTML = '';
-
-            videos.forEach(video => {
-                const videoItem = createVideoElement(video.url, video.userId);
-                document.getElementById('video-container').appendChild(videoItem);
-            });
-        }
-
-        const dropZone = document.getElementById('drop-zone');
-        const videoContainer = document.getElementById('video-container');
-
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.style.borderColor = '#000';
-            dropZone.style.color = '#000';
-        });
-
-        dropZone.addEventListener('dragleave', (e) => {
-            dropZone.style.borderColor = '#ccc';
-            dropZone.style.color = '#ccc';
-        });
-
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.style.borderColor = '#ccc';
-            dropZone.style.color = '#ccc';
-
-            const files = e.dataTransfer.files;
-            const videos = JSON.parse(localStorage.getItem('videos')) || [];
-
-            for (let i = 0; i < files.length; i++) {
-                const file = files[i];
-                const videoType = /^video\//;
-
-                if (!videoType.test(file.type)) {
-                    alert('Veuillez déposer uniquement des fichiers vidéo.');
-                    continue;
-                }
-
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    const videoItem = {
-                        userId: localStorage.getItem('userId'),
-                        url: event.target.result // Save base64 encoded string
-                    };
-
-                    videos.push(videoItem);
-                    saveVideos(videos);
-
-                    const videoElement = createVideoElement(videoItem.url, videoItem.userId);
-                    videoContainer.appendChild(videoElement);
-                };
-                reader.readAsDataURL(file); // Read file as base64 string
-            }
-        });
-
-        function createVideoElement(src, userId) {
-            const videoItem = document.createElement('div');
-            videoItem.className = 'video-item';
-
-            const video = document.createElement('video');
-            video.controls = true;
-            video.src = src;
-
-            const removeBtn = document.createElement('button');
-            removeBtn.className = 'remove-btn';
-            removeBtn.innerHTML = '&times;';
-            if (userId === localStorage.getItem('userId')) {
-                removeBtn.addEventListener('click', () => {
-                    if (confirm('Êtes-vous sûr de vouloir supprimer cette vidéo ?')) {
-                        const videos = JSON.parse(localStorage.getItem('videos'));
-                        const updatedVideos = videos.filter(video => video.url !== src);
-                        saveVideos(updatedVideos);
-                        videoContainer.removeChild(videoItem);
-                    }
-                });
-            } else {
-                removeBtn.style.display = 'none'; // Hide the button for non-owners
-            }
-
-            videoItem.appendChild(video);
-            videoItem.appendChild(removeBtn);
-
-            return videoItem;
-        }
-
-        function saveVideos(videos) {
-            localStorage.setItem('videos', JSON.stringify(videos));
-        }
-
-        function generateUserId() {
-            return '_' + Math.random().toString(36).substr(2, 9); // Simple random generation for demo purposes
-        }
     </script>
 </body>
 </html>
