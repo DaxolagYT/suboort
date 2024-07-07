@@ -93,22 +93,18 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', (event) => {
-            // Check if user is already registered
-            if (localStorage.getItem('username')) {
+            const currentUser = localStorage.getItem('currentUser');
+            if (currentUser) {
+                document.getElementById('register-container').style.display = 'none';
+                document.getElementById('login-container').style.display = 'none';
+                document.getElementById('drop-zone').style.display = 'block';
+                showUserVideos();
+            } else if (localStorage.getItem('username') && localStorage.getItem('password')) {
                 document.getElementById('register-container').style.display = 'none';
                 document.getElementById('login-container').style.display = 'block';
             } else {
                 document.getElementById('register-container').style.display = 'block';
                 document.getElementById('login-container').style.display = 'none';
-            }
-
-            // Load saved videos if any
-            if (localStorage.getItem('videos')) {
-                const videos = JSON.parse(localStorage.getItem('videos'));
-                videos.forEach(video => {
-                    const videoItem = createVideoElement(video.url, video.username);
-                    document.getElementById('video-container').appendChild(videoItem);
-                });
             }
         });
 
@@ -117,6 +113,8 @@
             const password = document.getElementById('register-password').value;
 
             if (username && password) {
+                const userId = generateUserId();
+                localStorage.setItem('userId', userId);
                 localStorage.setItem('username', username);
                 localStorage.setItem('password', password);
                 localStorage.setItem('videos', JSON.stringify([])); // Initialize empty array for videos
@@ -136,12 +134,23 @@
 
             if (username === storedUsername && password === storedPassword) {
                 alert('Connexion réussie!');
+                localStorage.setItem('currentUser', storedUsername); // Set current user
                 document.getElementById('login-container').style.display = 'none';
                 document.getElementById('drop-zone').style.display = 'block';
-                showUserVideos(username);
+                showUserVideos();
             } else {
                 alert('Nom d\'utilisateur ou mot de passe incorrect.');
             }
+        }
+
+        function showUserVideos() {
+            const videos = JSON.parse(localStorage.getItem('videos'));
+            document.getElementById('video-container').innerHTML = '';
+
+            videos.forEach(video => {
+                const videoItem = createVideoElement(video.url, video.userId);
+                document.getElementById('video-container').appendChild(videoItem);
+            });
         }
 
         const dropZone = document.getElementById('drop-zone');
@@ -175,20 +184,24 @@
                     continue;
                 }
 
-                const videoItem = {
-                    username: localStorage.getItem('username'),
-                    url: URL.createObjectURL(file)
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const videoItem = {
+                        userId: localStorage.getItem('userId'),
+                        url: event.target.result // Save base64 encoded string
+                    };
+
+                    videos.push(videoItem);
+                    saveVideos(videos);
+
+                    const videoElement = createVideoElement(videoItem.url, videoItem.userId);
+                    videoContainer.appendChild(videoElement);
                 };
-
-                videos.push(videoItem);
-                saveVideos(videos);
-
-                const videoElement = createVideoElement(videoItem.url, videoItem.username);
-                videoContainer.appendChild(videoElement);
+                reader.readAsDataURL(file); // Read file as base64 string
             }
         });
 
-        function createVideoElement(src, owner) {
+        function createVideoElement(src, userId) {
             const videoItem = document.createElement('div');
             videoItem.className = 'video-item';
 
@@ -199,27 +212,31 @@
             const removeBtn = document.createElement('button');
             removeBtn.className = 'remove-btn';
             removeBtn.innerHTML = '&times;';
-            removeBtn.addEventListener('click', () => {
-                if (confirm('Êtes-vous sûr de vouloir supprimer cette vidéo ?')) {
-                    const videos = JSON.parse(localStorage.getItem('videos'));
-                    const updatedVideos = videos.filter(video => video.url !== src || video.username !== localStorage.getItem('username'));
-                    saveVideos(updatedVideos);
-                    videoContainer.removeChild(videoItem);
-                }
-            });
-
-            // Allow only the video owner to remove it
-            if (owner === localStorage.getItem('username')) {
-                videoItem.appendChild(removeBtn);
+            if (userId === localStorage.getItem('userId')) {
+                removeBtn.addEventListener('click', () => {
+                    if (confirm('Êtes-vous sûr de vouloir supprimer cette vidéo ?')) {
+                        const videos = JSON.parse(localStorage.getItem('videos'));
+                        const updatedVideos = videos.filter(video => video.url !== src);
+                        saveVideos(updatedVideos);
+                        videoContainer.removeChild(videoItem);
+                    }
+                });
+            } else {
+                removeBtn.style.display = 'none'; // Hide the button for non-owners
             }
 
             videoItem.appendChild(video);
+            videoItem.appendChild(removeBtn);
 
             return videoItem;
         }
 
         function saveVideos(videos) {
             localStorage.setItem('videos', JSON.stringify(videos));
+        }
+
+        function generateUserId() {
+            return '_' + Math.random().toString(36).substr(2, 9); // Simple random generation for demo purposes
         }
     </script>
 </body>
